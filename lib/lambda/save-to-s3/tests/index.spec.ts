@@ -39,7 +39,7 @@ describe("Save event to S3", () => {
     // assert
     expect(s3Stub).to.have.been.calledOnce;
     expect(generatedKey).to.equal(
-      "2020/10/22/473edc2b-a079-4fa9-8fb3-3ccf602f4957"
+      "2020/10/21/473edc2b-a079-4fa9-8fb3-3ccf602f4957"
     );
   });
 
@@ -59,7 +59,7 @@ describe("Save event to S3", () => {
     expect(args).to.have.property("ContentType", "application/json");
     expect(args).to.have.property(
       "Key",
-      "2020/10/22/473edc2b-a079-4fa9-8fb3-3ccf602f4957"
+      "2020/10/21/473edc2b-a079-4fa9-8fb3-3ccf602f4957"
     );
     expect(args).to.have.property("Body", '{"name":"foo"}');
   });

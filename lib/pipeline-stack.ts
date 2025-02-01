@@ -20,7 +20,7 @@ export class PipelineStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    const gitOrg = "aws-samples";
+    const gitOrg = "StevenCalverley";
 
     const source = CodePipelineSource.connection(
       `${gitOrg}/amazon-eventbridge-cdk-audit-service-sample`,
