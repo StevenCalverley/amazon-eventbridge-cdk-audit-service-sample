@@ -1,124 +1,150 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
-import { Construct } from 'constructs';
-import { Stack, StackProps, CfnOutput, Stage, StageProps, Tags } from "aws-cdk-lib";
+import { Construct } from "constructs";
+import {
+  Stack,
+  StackProps,
+  CfnOutput,
+  Stage,
+  StageProps,
+  Tags,
+} from "aws-cdk-lib";
 
-import { EventBus, Rule, CfnRule, RuleTargetInput, EventField } from 'aws-cdk-lib/aws-events';
-import * as targets from 'aws-cdk-lib/aws-events-targets';
-import { StateMachineTarget } from './constructs/sf-state-machine-target';
-import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
-import { Topic } from 'aws-cdk-lib/aws-sns';
+import {
+  EventBus,
+  Rule,
+  CfnRule,
+  RuleTargetInput,
+  EventField,
+} from "aws-cdk-lib/aws-events";
+import * as targets from "aws-cdk-lib/aws-events-targets";
+import { StateMachineTarget } from "./constructs/sf-state-machine-target";
+import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
+import { Topic } from "aws-cdk-lib/aws-sns";
 
 interface AuditServiceStackProps extends StackProps {
   logicalEnv: string;
 }
 
 export class AuditServiceStack extends Stack {
-  
   public readonly busName: CfnOutput;
   public readonly bucketName: CfnOutput;
   public readonly tableName: CfnOutput;
   public readonly logGroupName: CfnOutput;
   public readonly topicName: CfnOutput;
-  
+
   constructor(scope: Construct, id: string, props?: AuditServiceStackProps) {
     super(scope, id, props);
 
     const prefix = props?.logicalEnv;
 
     // step functions state machine target
-    const stateMachineTarget = new StateMachineTarget(this, 'StateMachineTarget', {
-      logicalEnv: prefix!,
-      accountId: this.account
-    });
+    const stateMachineTarget = new StateMachineTarget(
+      this,
+      "StateMachineTarget",
+      {
+        logicalEnv: prefix!,
+        accountId: this.account,
+      }
+    );
 
     // cloudwatch log group target
-    const logGroup = new LogGroup(this, 'AuditLogGroup', {
+    const logGroup = new LogGroup(this, "AuditLogGroup", {
       logGroupName: `/aws/events/${prefix}-audit-events`,
-      retention: RetentionDays.ONE_DAY
+      retention: RetentionDays.ONE_DAY,
     });
 
     // sns topic
-    const topic = new Topic(this, 'DeletedEntitiesTopic', {
-      topicName: `${prefix}-deleted-entities`
+    const topic = new Topic(this, "DeletedEntitiesTopic", {
+      topicName: `${prefix}-deleted-entities`,
     });
 
     // eventbridge
-    const bus = new EventBus(this, 'AuditEventBus', {
-      eventBusName: `${prefix}-audit-event-bus`
+    const bus = new EventBus(this, "AuditEventBus", {
+      eventBusName: `${prefix}-audit-event-bus`,
     });
 
     // rule with step function state machine as a target
-    const auditEventsRule = new Rule(this, 'AuditEventsBusRule', {
+    const auditEventsRule = new Rule(this, "AuditEventsBusRule", {
       ruleName: `${prefix}-audit-events-rule`,
-      description: 'Rule matching audit events',
+      description: "Rule matching audit events",
       eventBus: bus,
-      eventPattern: {      
-        detailType: ['Object State Change']
-      }
+      eventPattern: {
+        detailType: ["Object State Change"],
+      },
     });
 
-    auditEventsRule.addTarget(new targets.SfnStateMachine(stateMachineTarget.stateMachine));
+    auditEventsRule.addTarget(
+      new targets.SfnStateMachine(stateMachineTarget.stateMachine)
+    );
 
     // rule with cloudwatch log group as a target
     // (using CFN as L2 constructor doesn't allow prefix expressions)
-    new CfnRule(this, 'AllEventsBusRule', {
+    new CfnRule(this, "AllEventsBusRule", {
       name: `${prefix}-all-events-rule`,
       eventBusName: bus.eventBusName,
-      description: 'Rule matching all events',
-      eventPattern: {   
-        source: [{prefix: ''}]
+      description: "Rule matching all events",
+      eventPattern: {
+        source: [{ prefix: "" }],
       },
-      targets: [{
-        id: `${prefix}-all-events-cw-logs`,
-        arn: `arn:aws:logs:${logGroup.stack.region}:${logGroup.stack.account}:log-group:${logGroup.logGroupName}`
-      }]
+      targets: [
+        {
+          id: `${prefix}-all-events-cw-logs`,
+          arn: `arn:aws:logs:${logGroup.stack.region}:${logGroup.stack.account}:log-group:${logGroup.logGroupName}`,
+        },
+      ],
     });
 
     // rule for deleted entities
-    const deletedEntitiesRule = new Rule(this, 'DeletedEntitiesBusRule', {
+    const deletedEntitiesRule = new Rule(this, "DeletedEntitiesBusRule", {
       ruleName: `${prefix}-deleted-entities-rule`,
-      description: 'Rule matching audit events for delete operations',
+      description: "Rule matching audit events for delete operations",
       eventBus: bus,
-      eventPattern: {      
-        detailType: ['Object State Change'],
+      eventPattern: {
+        detailType: ["Object State Change"],
         detail: {
-          operation: ['delete']
-        }
-      }
+          operation: ["delete"],
+        },
+      },
     });
 
-    deletedEntitiesRule.addTarget(new targets.SnsTopic(topic, {
-      message: RuleTargetInput.fromText(
-        `Entity with id ${EventField.fromPath('$.detail.entity-id')} has been deleted by ${EventField.fromPath('$.detail.author')}`
-      )
-    }));
+    deletedEntitiesRule.addTarget(
+      new targets.SnsTopic(topic, {
+        message: RuleTargetInput.fromText(
+          `Entity with id ${EventField.fromPath(
+            "$.detail.entity-id"
+          )} has been deleted by ${EventField.fromPath("$.detail.author")}`
+        ),
+      })
+    );
 
     // outputs
-    this.busName = new CfnOutput(this, 'EventBusName', {
+    this.busName = new CfnOutput(this, "EventBusName", {
       value: bus.eventBusName,
-      description: 'Name of the bus created for audit events'
+      description: "Name of the bus created for audit events",
     });
 
-    this.bucketName = new CfnOutput(this, 'BucketName', {
+    this.bucketName = new CfnOutput(this, "BucketName", {
       value: stateMachineTarget.bucket.bucketName,
-      description: 'Name of the bucket created to store the content of audit events'
+      description:
+        "Name of the bucket created to store the content of audit events",
     });
 
-    this.tableName = new CfnOutput(this, 'TableName', {
+    this.tableName = new CfnOutput(this, "TableName", {
       value: stateMachineTarget.table.tableName,
-      description: 'Name of the table created to store audit events'
+      description: "Name of the table created to store audit events",
     });
 
-    this.logGroupName = new CfnOutput(this, 'LogGroupName', {
+    this.logGroupName = new CfnOutput(this, "LogGroupName", {
       value: logGroup.logGroupName,
-      description: 'Name of the log group created to store all events'
+      description: "Name of the log group created to store all events",
     });
 
-    this.topicName = new CfnOutput(this, 'TopicName', {
+    this.topicName = new CfnOutput(this, "TopicName", {
       value: topic.topicName,
-      description: 'Name of the topic created to publish deleted entities events to'
+      description:
+        "Name of the topic created to publish deleted entities events to",
     });
   }
 }
