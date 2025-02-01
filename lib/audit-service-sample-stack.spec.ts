@@ -60,7 +60,7 @@ test("should create rule for all events going to CloudWatch log group", () => {
     },
     Targets: [
       {
-        Id: "test-all-events-cw-logs",
+        Id: "Target0",
       },
     ],
   });
