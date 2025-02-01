@@ -2,19 +2,11 @@
 // SPDX-License-Identifier: MIT-0
 
 import { Construct } from "constructs";
-import {
-  Stack,
-  StackProps,
-  CfnOutput,
-  Stage,
-  StageProps,
-  Tags,
-} from "aws-cdk-lib";
+import { Stack, StackProps, CfnOutput } from "aws-cdk-lib";
 
 import {
   EventBus,
   Rule,
-  CfnRule,
   RuleTargetInput,
   EventField,
 } from "aws-cdk-lib/aws-events";
@@ -80,20 +72,14 @@ export class AuditServiceStack extends Stack {
     );
 
     // rule with cloudwatch log group as a target
-    // (using CFN as L2 constructor doesn't allow prefix expressions)
-    new CfnRule(this, "AllEventsBusRule", {
-      name: `${prefix}-all-events-rule`,
-      eventBusName: bus.eventBusName,
+    new Rule(this, "AllEventsBusRule", {
+      ruleName: `${prefix}-all-events-rule`,
+      eventBus: bus,
       description: "Rule matching all events",
       eventPattern: {
-        source: [{ prefix: "" }],
+        source: [{ prefix: "" }] as any[],
       },
-      targets: [
-        {
-          id: `${prefix}-all-events-cw-logs`,
-          arn: `arn:aws:logs:${logGroup.stack.region}:${logGroup.stack.account}:log-group:${logGroup.logGroupName}`,
-        },
-      ],
+      targets: [new targets.CloudWatchLogGroup(logGroup)],
     });
 
     // rule for deleted entities
