@@ -9,6 +9,7 @@ const bucket = process.env.BUCKET_NAME || "audit-events";
 async function handler(event: any): Promise<string | void> {
   try {
     console.log("Raw event", event);
+    console.log("Bucket", bucket);
 
     if (!event.detail.data) {
       // no need to store object upon delete
